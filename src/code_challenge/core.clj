@@ -1,114 +1,46 @@
 (ns code-challenge.core
   (:use clojure.pprint)
-  (:require [clojure.data.json :as json]
-            [java-time :as jt]))
-
-(defn reading-json []
-  "Essa função faz a leitura do json e transforma a chave em keyword"
-  (json/read-str (slurp "src/code_challenge/json.json") :key-fn keyword))
-(pprint (reading-json))
-
-(defn account-create-operation? [operation]
-  "Verifica se é uma operação de criação da conta"
-  (if (:account operation) true
-                           false))
-
-(defn account-initialized? [history]
-  "Verifica se a conta já foi inicializada"
-  (if (> (count (filter #(:account %) (:input history))) 0) true
-                                                            false))
-
-(defn account-not-initialized? [history]
-  "Conta nao inicializada?"
-  (if (false? (account-initialized? history)) true
-                                              false))
-(defn account-already-initialized? [history]
-  "Conta inicializada?"
-  (if (account-initialized? history) true
-                                     false))
-
-(defn card-not-active? [history]
-  "Cartao inativo"
-  (if (false? (= (get-in (last (:output history)) [:account :active-card]) true)) true
-                                                                 false))
-(defn card-active? [history]
-  "Cartao ativo"
-  (if (= (get-in (last (:output history)) [:account :active-card]) true) true
-                                                        false))
-(defn double-transaction? []
-  false)
-
-(defn high-frequency-small-interval? []
-  false)
-
-(defn insufficient-limit? [history current-operation]
-  "Valida se o valor do limite é maior ou igual ao valor da compra"
-  (if (<= (get-in (last (:output history)) [:account :available-limit])
-        (get-in current-operation [:transaction :amount]))true
-                                                          false))
+  (:require [code-challenge.read-json :as json]
+            [code-challenge.validations :as validations]
+            [code-challenge.outputs :as outputs]))
 
 (defn merge-violation [violations invalid violation-tag]
   (if invalid
     (conj violations violation-tag)
     violations))
 
-(defn account-initialized [history]
-  {:account    {:active-card     (:active-card (last (:output history)))
-                :available-limit (:available-limit (last (:output history)))}
-   :violations ["account-already-initialized"]})
+(defn conditions-of-account [history current-operation]
+  "Rules of a valid account"
+  (cond (validations/account-already-initialized? history) (outputs/account-initialized history)
+        (validations/account-not-initialized? history) (outputs/account-not-initialized current-operation)
+        (validations/card-already-active? history) (outputs/card-active current-operation)
+        (validations/card-not-active? history) (outputs/card-not-active history)))
 
-(defn account-not-initialized [current-operation]
-  {:account    {:active-card     (get-in current-operation [:account :active-card])
-                :available-limit (get-in current-operation [:account :available-limit])}
-   :violations []})
-
-(defn contains-violations [history violations]
-  {:account    {:active-card  (get-in (last (:output history)) [:account :active-card])
-                :available-limit (get-in (last (:output history)) [:account :available-limit])}
-   :violations violations})
-
-(defn not-contains-violations [history current-operation]
-  {:account    {:active-card (get-in (last (:output history)) [:account :active-card])
-                :available-limit
-                (- (get-in (last (:output history)) [:account :available-limit])
-                   (get-in current-operation [:transaction :amount]))}
-   :violations []})
-
-(defn card-active [history]
-  {:account    {:active-card     (:active-card (last (:output history)))
-                :available-limit (:available-limit (last (:output history)))}
-   :violations []})
-
-(defn card-not-active [current-operation]
-  {:account    {:active-card     (get-in current-operation [:account :active-card])
-                :available-limit (get-in current-operation [:account :available-limit])}
-   :violations ["card-not-active"]})
 
 (defn check-transaction [history current-operation]
-
-  (if (account-create-operation? current-operation)
-    (cond (account-already-initialized? history) (account-initialized history)
-          (account-not-initialized? history) (account-not-initialized current-operation)
-          (card-active? history) (card-active current-operation)
-          (card-not-active? history) (card-not-active history))
+  "Validates transaction rules"
+  (if (validations/account-create-operation? current-operation)
+    (conditions-of-account history current-operation)
     (let [violations (-> []
-                         (merge-violation (account-not-initialized? history) "account-not-initialized")
-                         (merge-violation (card-not-active? history) "card-not-active")
-                         (merge-violation (double-transaction?) "double-transaction")
-                         (merge-violation (high-frequency-small-interval?) "high-frequency-small-interval")
-                         (merge-violation (insufficient-limit? history current-operation) "insufficient-limit"))
+                         (merge-violation (validations/account-not-initialized? history) "account-not-initialized")
+                         (merge-violation (validations/card-not-active? history) "card-not-active")
+                         (merge-violation (validations/double-transaction?) "double-transaction")
+                         (merge-violation (validations/high-frequency-small-interval?) "high-frequency-small-interval")
+                         (merge-violation (validations/insufficient-limit? history current-operation) "insufficient-limit"))
           output (if (> (count violations) 0)
-                   (contains-violations history violations)
-                   (not-contains-violations history current-operation))] output)))
+                   (validations/contains-violations history violations)
+                   (validations/not-contains-violations history current-operation))] output)))
 
-(defn process-trans [state current]
+(defn process-transaction [state current]
+  "Process transaction data"
   (let [output (check-transaction state current)]
     (-> state
         (update-in [:input] conj current)
         (update-in [:output] conj output))))
 
-
-
 (defn init-system []
-  (reduce process-trans {:input [] :output []} (seq (reading-json))))
+  "Reduces process-transactions and updates input and output data"
+  (reduce process-transaction {:input [] :output []} (seq (json/reading-json))))
+
+(pprint (:input (init-system)))
 (pprint (:output (init-system)))

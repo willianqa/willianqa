@@ -1,22 +1,23 @@
-# code-challenge
+# challenge-nubank
 
-A Clojure library designed to ... well, that part is up to you.
+This project has the function of solving the issues of nubank's engineering challenge.
+
 
 ## Usage
+There is a file called json.json, where all accout and transaction data are saved
+I used the data.json library to read the data from the file.
+The function that does this reading is in the name space called read_json.
 
-FIXME
+I used the name space core to organize the logic that checks for valid and violated transactions.
 
-## License
+My idea was to always check the last operation performed and validate them.
+For this reason I created the init-system function which basically takes an empty input vector and an empty output vector.
+Which receives a string from the json file.
 
-Copyright © 2022 FIXME
+The process-transaction function makes a reduce in the init-system updating the input and output data.
+This function (process-transaction) receives another function called chek-transaction that basically does all the validation of the transaction and returns an output with this data.
 
-This program and the accompanying materials are made available under the
-terms of the Eclipse Public License 2.0 which is available at
-http://www.eclipse.org/legal/epl-2.0.
+I separated in another name space called validations the functions validating each use case. Which was later called in the check-transaction.
 
-This Source Code may also be made available under the following Secondary
-Licenses when the conditions for such availability set forth in the Eclipse
-Public License, v. 2.0 are satisfied: GNU General Public License as published by
-the Free Software Foundation, either version 2 of the License, or (at your
-option) any later version, with the GNU Classpath Exception which is available
-at https://www.gnu.org/software/classpath/license.html.
+In the core namespace it is possible to run the pprint of the input and output. the Input brings the json data and the output brings the data with the validations.
+
